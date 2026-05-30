@@ -1,0 +1,109 @@
+# version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: ./.docker/app/Dockerfile
+      args:
+        - APP_DIR=${APP_DIR}
+    container_name: app
+    restart: unless-stopped
+    tty: true
+    user: "1000:1000"
+    environment:
+        APP_DIR: ${APP_DIR}
+    depends_on:
+      - db
+      - node
+    volumes:
+      - ./:/var/www/${APP_DIR}
+    mem_limit: 700m
+    mem_reservation: 400m
+    networks:
+      - app-network
+
+  nginx:
+    image: nginx:latest
+    container_name: app_nginx
+    restart: unless-stopped
+    volumes:
+      - ./:/var/www/${APP_DIR}
+      - ./.docker/nginx/conf.d/:/etc/nginx/conf.d/
+    ports:
+      - "8087:80"
+    depends_on:
+      - app
+    networks:
+      - app-network
+
+  #MySQL Service
+  db:
+    image: mysql:9.6
+    container_name: db
+    restart: unless-stopped
+    tty: true
+    ports:
+      - 8101:${DB_PORT}
+    environment:
+      MYSQL_HOST: localhost
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE: urt_test
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+    volumes:
+      - ./tmp/db:/var/lib/mysql/
+      - ./.docker/mysql/my.cnf:/etc/mysql/my.cnf
+      - ./.docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    mem_limit: 512m
+    mem_reservation: 256m
+    networks:
+      - app-network
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    depends_on:
+      - db
+    ports:
+      - 8181:80
+    environment:
+      PMA_HOST: db
+      MYSQL_USERNAME: ${DB_USERNAME}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      UPLOAD_LIMIT: 300M
+    networks:
+      - app-network
+
+  node:
+    image: node:25-alpine
+    container_name: app_node
+    restart: unless-stopped
+    working_dir: /var/www/${APP_DIR}
+    volumes:
+      - ./:/var/www/${APP_DIR}
+      # Для кэширования npm пакетов
+      # - ./tmp/node/node_cache:/usr/local/lib/node_modules
+    networks:
+      - app-network
+    tty: true
+    # command: sh -c "npm install"
+    ports:
+      - "5173:5173"
+
+  # redis:
+  #   image: redis:latest
+  #   container_name: app_redis
+  #   restart: unless-stopped
+  #   ports:
+  #     - "6379:6379"
+  #   volumes:
+  #     - ./tmp/redis/data:/data
+  #     - ./.docker/redis/redis.conf:/usr/local/etc/redis/redis.conf
+  #   command: redis-server /usr/local/etc/redis/redis.conf
+  #   networks:
+  #     - app-network
+
+#Docker Networks
+networks:
+  app-network:
+    driver: bridge
