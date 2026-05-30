@@ -19,3 +19,6 @@ php artisan migrate:fresh --seed
 База данных:
 http://localhost:8181/
 Логин и пароль в .env
+
+
+# Коллекция тестовых запросов находится в файле urt_test_task1.postman_collection.json
